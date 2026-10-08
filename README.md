@@ -1,13 +1,17 @@
-# gray-web
+<p align="center">
+  <img src="assets/gray-logo.svg" alt="gray" width="96">
+</p>
+<h1 align="center">gray-web</h1>
+<p align="center">Keyless web search — DuckDuckGo and SearXNG with round-robin fallback, no API keys.</p>
+<p align="center">
+  <a href="https://github.com/vstaln/gray-web/blob/main/LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+  <img alt="gray plugin" src="https://img.shields.io/badge/gray-plugin-7aa2f7.svg">
+  <img alt="rust" src="https://img.shields.io/badge/built%20with-rust-orange.svg">
+</p>
 
 Keyless web search: `web_query` fans out to DuckDuckGo's html endpoint and
-public SearXNG instances — no API keys. Port of the keyless half of
-hermes's `web/` providers (`ddgs`, `searxng`); API-key engines are covered
-by gray's `search` plugin, which is why the tool is named `web_query`, not
-`web_search`.
-
-A sidecar plugin for [gray](https://github.com/vstaln/gray), scaffolded by
-[gray-account](https://github.com/vstaln/gray-account).
+public SearXNG instances — no API keys. API-key engines are covered by gray's
+`search` plugin, which is why the tool is named `web_query`, not `web_search`.
 
 ## Tool
 
@@ -47,3 +51,7 @@ gray account publish    # check → build → release → publish to the gray re
 
 Bump `version` in `Cargo.toml` before each `publish`; the registry refuses to
 republish a version.
+
+---
+Part of the [gray](https://github.com/vstaln/gray) plugin ecosystem —
+the open-source AI agent harness. <https://gray.alignment.id>
