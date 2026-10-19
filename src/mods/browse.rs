@@ -90,6 +90,9 @@ struct Fetch {
 
 /// curl → body capped at MAX_BODY + last HTTP status from dumped headers.
 fn fetch(url: &str) -> Result<Fetch, String> {
+    // `curl -D` wants a file for the dumped headers; `/dev/stderr` is
+    // unix-only, so dump to a scratch file and keep stderr for errors.
+    let dump = std::env::temp_dir().join(format!("gray-browse-{}.hdr", std::process::id()));
     let mut child = std::process::Command::new("curl")
         .args([
             "-sS",
@@ -98,12 +101,9 @@ fn fetch(url: &str) -> Result<Fetch, String> {
             "20",
             "--compressed",
             "-D",
-            "/dev/stderr",
-            "-A",
-            UA,
-            "--",
-            url,
         ])
+        .arg(&dump)
+        .args(["-A", UA, "--", url])
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
@@ -133,9 +133,11 @@ fn fetch(url: &str) -> Result<Fetch, String> {
         let _ = child.kill();
     }
     let exit = child.wait().map_err(|e| format!("curl wait failed: {e}"))?;
-    let mut headers = String::new();
+    let headers = std::fs::read_to_string(&dump).unwrap_or_default();
+    let _ = std::fs::remove_file(&dump);
+    let mut errors = String::new();
     if let Some(mut err) = child.stderr.take() {
-        let _ = err.read_to_string(&mut headers);
+        let _ = err.read_to_string(&mut errors);
     }
     let status = headers
         .lines()
@@ -144,7 +146,7 @@ fn fetch(url: &str) -> Result<Fetch, String> {
         .and_then(|l| l.split_whitespace().nth(1))
         .and_then(|n| n.parse::<u16>().ok());
     if !exit.success() && !capped {
-        let detail = headers
+        let detail = errors
             .lines()
             .filter(|l| l.starts_with("curl:"))
             .last()

@@ -48,7 +48,11 @@ fn manifest() -> Value {
 fn state_dir() -> std::path::PathBuf {
     let home = std::env::var_os("GRAY_HOME")
         .map(std::path::PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".gray")))
+        .or_else(|| {
+            std::env::var_os("HOME")
+                .or_else(|| std::env::var_os("USERPROFILE"))
+                .map(|h| std::path::PathBuf::from(h).join(".gray"))
+        })
         .unwrap_or_else(|| std::path::PathBuf::from("."));
     home.join("web")
 }
@@ -98,7 +102,21 @@ fn url_decode(s: &str) -> String {
     String::from_utf8_lossy(&out).to_string()
 }
 
+/// `curl -D` wants a file for the dumped headers; `/dev/stderr` is
+/// unix-only, so each call dumps to a scratch file in the temp dir and
+/// stderr stays free for `curl:` error lines.
+fn header_dump() -> std::path::PathBuf {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static N: AtomicU64 = AtomicU64::new(0);
+    std::env::temp_dir().join(format!(
+        "gray-web-{}-{}.hdr",
+        std::process::id(),
+        N.fetch_add(1, Ordering::Relaxed)
+    ))
+}
+
 fn get(url: &str) -> Result<(Option<u16>, String), String> {
+    let dump = header_dump();
     let out = std::process::Command::new("curl")
         .args([
             "-sS",
@@ -109,17 +127,15 @@ fn get(url: &str) -> Result<(Option<u16>, String), String> {
             "--max-filesize",
             &MAX_BODY.to_string(),
             "-D",
-            "/dev/stderr",
-            "-A",
-            UA,
-            "--",
-            url,
         ])
+        .arg(&dump)
+        .args(["-A", UA, "--", url])
         .stdin(std::process::Stdio::null())
         .stderr(std::process::Stdio::piped())
         .output()
         .map_err(|e| format!("couldn't run curl: {e}"))?;
-    let headers = String::from_utf8_lossy(&out.stderr).to_string();
+    let headers = std::fs::read_to_string(&dump).unwrap_or_default();
+    let _ = std::fs::remove_file(&dump);
     let status = headers
         .lines()
         .filter(|l| l.starts_with("HTTP/"))
@@ -127,7 +143,8 @@ fn get(url: &str) -> Result<(Option<u16>, String), String> {
         .and_then(|l| l.split_whitespace().nth(1))
         .and_then(|n| n.parse::<u16>().ok());
     if !out.status.success() {
-        let detail = headers
+        let detail = String::from_utf8_lossy(&out.stderr);
+        let detail = detail
             .lines()
             .filter(|l| l.starts_with("curl:"))
             .last()
