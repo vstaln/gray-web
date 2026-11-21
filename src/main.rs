@@ -138,16 +138,14 @@ fn get(url: &str) -> Result<(Option<u16>, String), String> {
     let _ = std::fs::remove_file(&dump);
     let status = headers
         .lines()
-        .filter(|l| l.starts_with("HTTP/"))
-        .next_back()
+        .rfind(|l| l.starts_with("HTTP/"))
         .and_then(|l| l.split_whitespace().nth(1))
         .and_then(|n| n.parse::<u16>().ok());
     if !out.status.success() {
         let detail = String::from_utf8_lossy(&out.stderr);
         let detail = detail
             .lines()
-            .filter(|l| l.starts_with("curl:"))
-            .next_back()
+            .rfind(|l| l.starts_with("curl:"))
             .map(str::trim)
             .unwrap_or("curl failed");
         return Err(detail.to_string());
