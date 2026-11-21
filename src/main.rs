@@ -139,7 +139,7 @@ fn get(url: &str) -> Result<(Option<u16>, String), String> {
     let status = headers
         .lines()
         .filter(|l| l.starts_with("HTTP/"))
-        .last()
+        .next_back()
         .and_then(|l| l.split_whitespace().nth(1))
         .and_then(|n| n.parse::<u16>().ok());
     if !out.status.success() {
@@ -147,7 +147,7 @@ fn get(url: &str) -> Result<(Option<u16>, String), String> {
         let detail = detail
             .lines()
             .filter(|l| l.starts_with("curl:"))
-            .last()
+            .next_back()
             .map(str::trim)
             .unwrap_or("curl failed");
         return Err(detail.to_string());
@@ -247,10 +247,10 @@ fn unwrap_ddg(href: &str) -> String {
 fn search_ddg(query: &str, limit: usize) -> Result<Vec<Hit>, String> {
     let url = format!("https://html.duckduckgo.com/html/?q={}", url_encode(query));
     let (status, html) = get(&url)?;
-    if let Some(code) = status {
-        if code >= 400 {
-            return Err(format!("ddg: HTTP {code}"));
-        }
+    if let Some(code) = status
+        && code >= 400
+    {
+        return Err(format!("ddg: HTTP {code}"));
     }
     let mut hits: Vec<Hit> = Vec::new();
     for (attrs, inner) in anchors_with(&html, "result__a") {
@@ -332,11 +332,11 @@ fn search_searxng(query: &str, limit: usize, start: usize) -> Result<(Vec<Hit>, 
         let url = format!("{base}/search?q={}&format=json", url_encode(query));
         match get(&url) {
             Ok((status, body)) => {
-                if let Some(code) = status {
-                    if code >= 400 {
-                        errs.push(format!("{base}: HTTP {code}"));
-                        continue;
-                    }
+                if let Some(code) = status
+                    && code >= 400
+                {
+                    errs.push(format!("{base}: HTTP {code}"));
+                    continue;
                 }
                 let Ok(v) = serde_json::from_str::<Value>(&body) else {
                     errs.push(format!("{base}: non-JSON reply"));
